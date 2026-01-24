@@ -1,0 +1,11 @@
+{   
+    "scene": "scene0664_00",
+    "cudaid": "5",
+    "Code_path": "/code3/wjh/2025-PIGS/Code",
+    "Data_path": "/data/wjh/PIGS_data",
+    "Data_type": "ScanNetV2",
+    "conda_sh": "/code1/wjh/anaconda3/etc/profile.d/conda.sh",
+    "ray_tmp": "/code3/wjh/tmp",
+    "sam_path": "/data/wjh/ScanNet++/sam_vit_h_4b8939.pth",
+    "use_proxy": true
+  }

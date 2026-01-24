@@ -1,0 +1,36 @@
+# Outputs and weights
+**/output_Replica/
+**/output_ScanNet++/
+**/output_ScanNetV2/
+**/planarSplat_ExpRes/
+**/weights/
+**/Replica/
+
+# Python
+**__pycache__**
+*.py[cod]
+*.egg-info/
+*.egg
+.eggs/
+*.bz2
+
+# C++ & CMake
+*.o
+**/segmentator
+**/CMakeCache.txt
+**/cmake_install.cmake
+**/CMakeFiles/
+
+# Build
+**/build/
+**/dist/
+*.so
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+logs/
