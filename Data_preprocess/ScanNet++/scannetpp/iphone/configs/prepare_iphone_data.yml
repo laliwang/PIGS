@@ -1,0 +1,14 @@
+
+# extract RGB frames
+extract_rgb: true
+# extract anonymization masks
+extract_masks: False
+# extract depth frames
+extract_depth: true
+
+# folder where the data is downloaded
+data_root: /data/xxx/scannet++
+
+# splits: [nvs_sem_train, nvs_sem_val]
+
+scene_ids: [56a0ec536c]

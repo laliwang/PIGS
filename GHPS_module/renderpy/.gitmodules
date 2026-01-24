@@ -1,0 +1,19 @@
+[submodule "pybind11"]
+	path = pybind11
+	url = https://github.com/pybind/pybind11.git
+	branch = master
+
+
+[submodule "thirdparty/mLib"]
+	path = thirdparty/mLib
+	url = https://github.com/cy94/mLib.git
+
+[submodule "thirdparty/glog-0.4.0"]
+	path = thirdparty/glog-0.4.0
+	url = https://github.com/google/glog.git
+[submodule "thirdparty/cnpy"]
+	path = thirdparty/cnpy
+	url = https://github.com/rogersce/cnpy
+[submodule "thirdparty/libE57Format"]
+	path = thirdparty/libE57Format
+	url = https://github.com/asmaloney/libE57Format
