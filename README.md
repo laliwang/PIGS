@@ -22,221 +22,247 @@ Tested on Ubuntu 20.04/24.04 with CUDA 11.8.
 ### Clone this repo
 
 ```bash
-git clone https://github.com/BIT-DYN/omnimap.git
-cd omnimap
+git clone --recursive https://github.com/laliwang/PIGS.git
+cd PIGS
+Code_path="$PWD"
 ```
 
-### Install the required libraries
+### Create a conda environment
 
 ```bash
-conda env create -f environment.yaml
-conda activate omnimap
+conda create -n pigs325 python=3.9
+conda activate pigs325
 ```
 
-### Install torch-scatter
+### Install torch and basic requirements
 
 ```bash
-pip install torch-scatter -f https://data.pyg.org/whl/torch-2.1.2+cu118.html
+# cuda 11.8 tested
+pip install torch==2.0.1 torchvision==0.15.2 torchaudio==2.0.2 --index-url https://download.pytorch.org/whl/cu118
+# basic requirements
+pip install -r requirements_basic.txt
+# install pytorch3d offline for stability
+wget https://api.anaconda.org/download/pytorch3d/pytorch3d/0.7.4/linux-64/pytorch3d-0.7.4-py39_cu118_pyt201.tar.bz2
+conda install pytorch3d-0.7.4-py39_cu118_pyt201.tar.bz2
+# no build isolation
+pip install https://github.com/JamieWatson683/scikit-image/archive/single_mesh.zip --no-build-isolation
+# then for full requirements
+pip install -r requirements_then.txt
 ```
+**Notice:** if you encounter "network connectivity" issues during installation, you can try to install them one by one.
 
-### Set CUDA environment
-
-Run this every time before using the environment, or add to conda activation script:
-
+### Install thirdparty submodules
 ```bash
-export CUDA_HOME=$CONDA_PREFIX
-export PATH=$CUDA_HOME/bin:$PATH
-export LD_LIBRARY_PATH=$CUDA_HOME/lib:$LD_LIBRARY_PATH
+cd ${Code_path}/PIGO_module/submodules/diff-plane-rasterization
+pip install . --no-build-isolation
+
+cd ../simple-knn
+pip install . --no-build-isolation
+
+cd ${Code_path}/GHPS_module/renderpy
+pip install .
 ```
 
-To make it permanent, add to conda activate script:
+### (Optional) Install thirdparty for planarsplatting
 ```bash
-mkdir -p $CONDA_PREFIX/etc/conda/activate.d
-echo 'export CUDA_HOME=$CONDA_PREFIX
-export PATH=$CUDA_HOME/bin:$PATH
-export LD_LIBRARY_PATH=$CUDA_HOME/lib:$LD_LIBRARY_PATH' > $CONDA_PREFIX/etc/conda/activate.d/cuda_env.sh
+cd ${Code_path}/PIGO_module/planarsplat/submodules/diff-rect-rasterization
+pip install .
+
+cd ../quaternion-utils
+pip install .
 ```
 
-### Install thirdparty components
-
+### Complie Segmentator for ScanNetpp
 ```bash
-pip install --no-build-isolation thirdparty/simple-knn
-pip install --no-build-isolation thirdparty/diff-gaussian-rasterization
-pip install --no-build-isolation thirdparty/lietorch
+cd ${Code_path}/Data_preprocess/ScanNet++/Segmentator
+cmake . && make
 ```
 
-**Note:** The `mmyolo` package has been copied from YOLO-World repository into `thirdparty/mmyolo/` to resolve a dependency conflict. The original YOLO-World had a version constraint that prevented using mmcv versions newer than 2.0.0, but this project requires mmcv 2.1.0. This issue has been fixed in the local copy.
-
-### Install YOLO-World Model
-
+## 📦 Pretrained Weights
 ```bash
-cd ..
-git clone --recursive https://github.com/AILab-CVC/YOLO-World.git
-cd YOLO-World
-pip install mmcv==2.1.0 -f https://download.openmmlab.com/mmcv/dist/cu118/torch2.1/index.html
-pip install -r <(grep -v "opencv-python" requirements/basic_requirements.txt)
-pip install -e . --no-build-isolation
-cd ../omnimap
+cd ${Code_path}
+mkdir weights && cd weights
+
+# X-PDNet pretrained weights
+python -m gdown https://drive.google.com/uc?id=1ChJiTemWxG-3oTIbvOFLTo7PJsVxnZ-d
+python -m gdown https://drive.google.com/uc?id=1rkPiWZ_313GGFMW1KLpyzM7a-nynchPV
+
+# sam pretrained weights
+wget https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth
 ```
-
-**Fix YOLO-World syntax error:** In `YOLO-World/yolo_world/models/detectors/yolo_world.py` line 61, replace:
-```python
-self.text_feats, None = self.backbone.forward_text(texts)
-```
-with:
-```python
-self.text_feats, _ = self.backbone.forward_text(texts)
-```
-
-Download pretrained weights [YOLO-Worldv2-L (CLIP-Large)](https://huggingface.co/wondervictor/YOLO-World/blob/main/yolo_world_v2_l_clip_large_o365v1_goldg_pretrain_800ft-9df82e55.pth) to `weights/yolo-world/`.
-
-### Install TAP Model
-
-```bash
-pip install flash-attn==2.5.8 --no-build-isolation
-pip install git+https://github.com/baaivision/tokenize-anything.git
-```
-
-Download pretrained weights to `weights/tokenize-anything/`:
-- [tap_vit_l_v1_1.pkl](https://huggingface.co/BAAI/tokenize-anything/resolve/main/models/tap_vit_l_v1_1.pkl)
-- [merged_2560.pkl](https://huggingface.co/BAAI/tokenize-anything/resolve/main/models/merged_2560.pkl)
-
-### Install SBERT Model
-
-```bash
-pip install -U sentence-transformers
-pip install transformers==4.36.2
-```
-
-**Note:** If you see `sentence-transformers 5.2.0 has requirement transformers<6.0.0,>=4.41.0, but you have transformers 4.36.2.` just skip it - it's okay.
-
-Download pretrained weights to `weights/sbert/`:
-```bash
-cd weights/sbert
-git clone https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2
-```
-
-### Install additional dependencies
-
-```bash
-pip install --no-build-isolation git+https://github.com/lvis-dataset/lvis-api.git
-python -m spacy download en_core_web_sm
-```
-
-### Download YOLO-World data files
-
-(This part is unnecessary because data folder already exists with all required scripts)
-
-```bash
-mkdir -p data/coco/lvis && cd data/coco/lvis
-wget https://huggingface.co/GLIPModel/GLIP/resolve/main/lvis_v1_minival_inserted_image_name.json
-cd ../../..
-cp -r ../YOLO-World/data/texts data/
-```
-
-### Modify the model path
-
-Change the address of the above models in the configuration file in `config/`.
-
-### Reinstall mmcv:
-
-(some packages may change your mmcv version, please reinstall mmcv and check if it's version is 2.1.0)
-
-```bash
-pip install mmcv==2.1.0 -f https://download.openmmlab.com/mmcv/dist/cu118/torch2.1/index.html
-```
-
-### Fix transformers version compatibility:
-
-If you encounter `AttributeError: module 'torch.utils._pytree' has no attribute 'register_pytree_node'`, install the compatible version of transformers:
-
-```bash
-pip install transformers==4.36.2
-```
-
-This version is compatible with PyTorch 2.1.2. Newer versions of transformers require PyTorch 2.2+.
-
-### Verify installation
-
-```bash
-python -c "import torch; import mmcv; import mmdet; from tokenize_anything import model_registry; print('Setup complete')"
-```
-
-**Note:**: You may get the ERROR: `AssertionError: MMCV==2.2.0 is used but incompatible. Please install mmcv>=2.0.0rc4, <2.1.0.`. If so - just go to `__init__.py` and change `mmcv_maximum_version` to `2.2.0`.
 
 ## 📊 Prepare dataset
 
-OmniMap has completed validation on Replica (as same with [vMap](https://github.com/kxhit/vMAP)) and ScanNet. Please download the following datasets.
+PIGS has completed validation on ScanNetV2, ScanNet++ and Replica. Please download the following datasets.
 
-* [Replica Demo](https://huggingface.co/datasets/kxic/vMAP/resolve/main/demo_replica_room_0.zip) - Replica Room 0 only for faster experimentation.
-* [Replica](https://huggingface.co/datasets/kxic/vMAP/resolve/main/vmap.zip) - All Pre-generated Replica sequences.
+* [Replica](https://huggingface.co/datasets/kxic/vMAP/resolve/main/vmap.zip) - Pre-generated Replica sequences from [vMAP](https://github.com/kxhit/vMAP), along with our processed annotation files aligned to the ScanNetV2 format.
 * [ScanNet](https://github.com/ScanNet/ScanNet) - Official ScanNet sequences.
+* [ScanNet++](https://scannetpp.mlsg.cit.tum.de/scannetpp/) Official ScanNet++ sequences.
 
-Update the dataset path in `config/replica_config.yaml` or `config/scannet_config.yaml`:
-```yaml
-path:
-  data_path: /path/to/your/dataset
+### Data & Results Structure
+After running the data preprocessing scripts and the full pipeline of our code, the folder structure of the data and results is organized as follows.
+
+
+<details>
+<summary><strong>📁 Click to expand the directory tree</strong></summary>
+
+```text
+your_data_path  
+└── ScanNetV2
+    ├── gt_plane_meshes                   # ground-truth plane meshes
+    │   └── scene_name
+    ├── gt_plane_renders                  # ground-truth plane renders
+    │   └── scene_name
+    ├── gt_visibility_volumes             # ground-truth visibility volumes
+    │   └── scene_name
+    ├── planeseg                          # PIGS Intermediate Results
+    │   └── result_seg
+    │       ├── hive_2d                   # 2D structural priors
+    │       │   └── scene_name_step
+    │       │       ├── mask_xpd          # sparse label like xpdnet
+    │       │       ├── normal_npy_m      # monocular normals
+    │       │       └── planesam          # distance refined segments
+    │       └── hive_pigs                 # MVSA Results
+    │           └── scene_name_step
+    │               ├── ghps_output       # GHPS output
+    │               └── mvsa_output       # MVSA output
+    ├── scans_hive                        # downsampled dataset in PIGS
+    │   └── scans
+    │       └── scene_name_step           # (640 x 480)
+    │           ├── color
+    │           ├── depth
+    │           ├── depth_m3d             # monocular depths
+    │           ├── intrinsic
+    │           ├── mesh
+    │           ├── pose
+    │           └── pyrender_debug        # pyrender depths
+    ├── scans_pigs                        # PIGS final output
+    │   └── scene_name
+    │       ├── scores                    # Evaluated Scores
+    │       └── *_planar_mesh_pigs.ply    # ✦ PIGS planar mesh
+    ├── scans_sens                        # original sens files
+    └── scans_test                        # sensor_data format
+        └── scans
+            └── scans
+                └── scene_name
 ```
+</details> 
 
 ## 🏃 Run
 
-### Main Code
+### Bash Script
 
-Run the following command to start the formal execution of the incremental mapping.
+For efficiency considerations, we reorganize the PIGS pipeline into 6 bash scripts per scene, and expose a minimal and flexible interface that allows users to easily adapt the pipeline to their own directory structures.
+
+**1.ScanNetV2: PIGS/bashes/ScanNetV2/scannet.json**
+```json
+{   
+    "scene": "scene_name",    # "like scene0678_00"
+    "cudaid": "0",
+    "Code_path": "/path/to/PIGS",
+    "Data_path": "/path/to/PIGS_data",
+    "Data_type": "ScanNetV2",
+    "conda_sh": "/path/to/anaconda3/etc/profile.d/conda.sh",
+    "ray_tmp": "/path/to/tmp",
+    "Weights_path": "/path/to/PIGS/weights",
+    "use_proxy": true
+  }
+```
+
+**2.ScanNet++: PIGS/bashes/ScanNet++/scannetpp.json**
+```json
+{   
+    "scene": "scene_name",    # "like 785e7504b9"
+    "cudaid": "0",
+    "Code_path": "/path/to/PIGS",
+    "Data_path": "/path/to/PIGS_data",
+    "Data_type": "ScanNet++",
+    "conda_sh": "/path/to/anaconda3/etc/profile.d/conda.sh",
+    "ray_tmp": "/path/to/tmp",
+    "Weights_path": "/path/to/PIGS/weights",
+    "Token": "your_token (obtained via application)",
+    "use_proxy": true
+  }
+```
+
+**Notice:** the `use_proxy` flag is used if you are using a proxy for network access. If `true`, then you need to change the port in each `*.sh` file to your proxy port. And to load path parameters from json, `jq` is required on your machine.
 
 ```bash
-# for replica
-python demo.py --dataset replica --scene {scene} --vis_gui
-# for scannet
-python demo.py --dataset scannet --scene {scene} --vis_gui
+sudo apt-get install jq
 ```
 
-You can use `--start {start_id}` and `--length {length}` to specify the starting frame ID and the mapping duration, respectively. The `--vis_gui` flag controls online visualization; disabling it may improve processing speed.
+### Code Run
 
-### Examples:
+**1. ScanNetV2**
+```bash
+# for ScanNetV2
+cd bashes/ScanNetV2
+
+# prepare the dataset
+bash run_0_prepare_scannet.sh scannet.json
+
+# run the ghps stage
+bash run_1_ghps.sh scannet.json
+
+# run the mvsa stage
+bash run_2_mvsa.sh scannet.json
+
+# run the pigo stage
+bash run_3_pigo.sh scannet.json
+
+# generate the gt files
+bash eval_compute_gt.sh scannet.json
+
+# evaluate the metrics
+bash eval_compute_metrics.sh scannet.json
+```
+
+**2. ScanNet++**
+```bash
+# for ScanNet++
+cd bashes/ScanNet++
+
+# prepare the dataset
+bash run_0_prepare_scannetpp.sh scannetpp.json
+
+# run the ghps stage
+bash run_1_ghps.sh scannetpp.json
+
+# run the mvsa stage
+bash run_2_mvsa.sh scannetpp.json
+
+# run the pigo stage
+bash run_3_pigo.sh scannetpp.json
+
+# generate the gt files
+bash eval_compute_gt.sh scannetpp.json
+
+# evaluate the metrics
+bash eval_compute_metrics.sh scannetpp.json
+```
+
+**Notice:** For a detailed walkthrough of the full pipeline, please refer to [sequential.md](sequential.md), which provides a step-by-step example on `scene0575_00` from ScanNetV2.
+
+## ❓ FAQ / Common Questions
+### Q-1: Installing `renderpy` fails due to missing system `LibGL`?
+
+If the system `LibGL` cannot be found when installing `renderpy`, please declare the following environment variables **before** running `pip install .`:
 
 ```bash
-# Replica
-python demo.py --dataset replica --scene room_0
-
-# ScanNet
-python main.py --dataset scannet --scene scene0000_00
+export CMAKE_PREFIX_PATH=/usr
+export CMAKE_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu
+export CMAKE_INCLUDE_PATH=/usr/include
 ```
 
-After building the map, the results will be saved in folder `outputs/{scene}`, which contains the rendered outputs and evaluation metrics.
+### Q2: Installing `diff-plane-rasterization` fails due to missing `crypt.h`?
 
-### Gen 3D Mesh
-
-We use the rendered depth and color images to generate the color mesh. You can run the following code to perform this operation.
+When installing the third-party library `diff-plane-rasterization` in the PIGO module, the build may fail because `crypt.h` cannot be found.  
+In this case, please run the following commands:
 
 ```bash
-# for replica
-python tsdf_integrate.py --dataset replica --scene {scene}
-# for scannet
-python tsdf_integrate.py --dataset scannet --scene {scene}
-```
-
-## Project Structure
-
-```
-omnimap/
-├── config/
-│   ├── replica_config.yaml
-│   ├── scannet_config.yaml
-│   └── yolo-world/
-├── data/
-│   ├── coco/lvis/
-│   └── texts/
-├── weights/
-│   ├── yolo-world/
-│   ├── tokenize-anything/
-│   └── sbert/
-├── thirdparty/
-│   ├── simple-knn/
-│   ├── diff-gaussian-rasterization/
-│   ├── lietorch/
-│   └── mmyolo/
-└── demo.py
+cp /usr/include/crypt.h /path/to/pigs_envs/include/crypt.h
+export CPATH=/path/to/pigs_envs/include
+pip install -e .
 ```
 
 ## 🔗 Citation
@@ -244,14 +270,9 @@ omnimap/
 If you find our work helpful, please cite:
 
 ```bibtex
-@article{omnimap,
-  title={OmniMap: A Comprehensive Mapping Framework Integrating Optics, Geometry, and Semantics},
-  author={Deng, Yinan and Yue, Yufeng and Dou, Jianyu and Zhao, Jingyu and Wang, Jiahui and Tang, Yujie and Yang, Yi and Fu, Mengyin},
-  journal={IEEE Transactions on Robotics},
-  year={2025}
-}
+To be updated.
 ```
 
 ## 👏 Acknowledgements
 
-We would like to express our gratitude to the open-source projects and their contributors [HI-SLAM2](https://github.com/Willyzw/HI-SLAM2), [3D Gaussian Splatting](https://github.com/graphdeco-inria/gaussian-splatting), [YOLO-World](https://github.com/AILab-CVC/YOLO-World), and [TAP](https://github.com/baaivision/tokenize-anything). Their valuable work has greatly contributed to the development of our codebase.
+We would like to express our gratitude to the open-source projects and their contributors [Airplanes](https://github.com/nianticlabs/airplanes), [Maskclustering](https://github.com/PKU-EPIC/MaskClustering), [PGSR](https://github.com/zju3dv/PGSR), [ScanNet](https://github.com/ScanNet/ScanNet) and [ScanNet++](https://github.com/scannetpp/scannetpp). Their valuable work has greatly contributed to the development of our codebase.
