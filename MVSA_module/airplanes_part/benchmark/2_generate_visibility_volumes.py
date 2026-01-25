@@ -10,8 +10,12 @@ import open3d as o3d
 import torch
 import tqdm
 
-from airplanes.utils.generic_utils import readlines, to_gpu
-from airplanes.utils.volume_utils import SimpleVolume, VisibilityAggregator
+import sys
+current_dir = Path(__file__).resolve().parents[1]
+sys.path.append(current_dir)
+
+from airplanes_part.utils.generic_utils import readlines, to_gpu
+from airplanes_part.utils.volume_utils import SimpleVolume, VisibilityAggregator
 
 
 class SimpleScanNetDataset(torch.utils.data.Dataset):

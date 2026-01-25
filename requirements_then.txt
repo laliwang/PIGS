@@ -1,0 +1,48 @@
+# for Metric3d v2
+xformers==0.0.21
+Pillow
+DateTime
+matplotlib
+HTML4Vision
+timm
+tensorboardX
+imgaug
+fvcore
+iopath
+imagecorruptions
+mmcv
+setuptools==58.0.0
+wheel==0.36.2
+pythran
+cython
+distinctipy
+loguru
+https://github.com/JamieWatson683/scikit-image/archive/single_mesh.zip
+
+# for scannet data preprocess
+pypng
+natsort
+
+# for scannetpp data preprocess
+lz4
+munch
+
+# for cuml acceleration
+--extra-index-url https://pypi.nvidia.com
+cuml-cu11==24.8.0
+
+# for segment-anything
+git+https://github.com/facebookresearch/segment-anything.git
+
+# for weight download
+gdown
+
+# for evaluation
+kornia
+ray
+
+# for PlanarSplatting (Optional)
+pyhocon
+numpy-quaternion==2022.4.3
+pyrender
+pydantic==2.10.6

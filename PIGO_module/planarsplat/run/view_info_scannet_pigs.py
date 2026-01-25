@@ -18,8 +18,8 @@ from pathlib import Path
 current_dir = Path(__file__).resolve().parents[1]
 sys.path.append(current_dir)
 # from planarsplat
-from utils import model_util
-from utils.graphics_utils import focal2fov, getProjectionMatrix
+from planarsplat.utils import model_util
+from planarsplat.utils.graphics_utils import focal2fov, getProjectionMatrix
 
 def read_files(directory, endtxt):
     file_paths = [os.path.join(directory, file) for file in os.listdir(directory) if file.endswith(endtxt)]

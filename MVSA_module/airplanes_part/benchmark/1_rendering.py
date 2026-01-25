@@ -14,7 +14,6 @@ import torch
 import tqdm
 import trimesh
 from loguru import logger
-from omegaconf import DictConfig
 from PIL import Image
 from pytorch3d.renderer import MeshRasterizer, RasterizationSettings, TexturesVertex
 from pytorch3d.structures import Meshes

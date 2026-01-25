@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 current_dir = Path(__file__).resolve().parents[1]
 sys.path.append(current_dir)
-from utils.model_util import quat_to_rot
+from planarsplat.utils.model_util import quat_to_rot
 
 class random_color(object):
     def __init__(self, color_num=20000):

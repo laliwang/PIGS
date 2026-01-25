@@ -15,8 +15,8 @@ from pathlib import Path
 current_dir = Path(__file__).resolve().parents[1]
 sys.path.append(current_dir)
 
-from utils import model_util
-from utils.plot_util import plot_rectangle_planes
+from planarsplat.utils import model_util
+from planarsplat.utils.plot_util import plot_rectangle_planes
 
 
 class PlanarSplat_Network(nn.Module):

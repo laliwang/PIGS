@@ -22,7 +22,7 @@ Code_path=$(jq -r '.Code_path' "${CONFIG_JSON}")
 Data_path=$(jq -r '.Data_path' "${CONFIG_JSON}")
 Data_type=$(jq -r '.Data_type' "${CONFIG_JSON}")
 use_proxy=$(jq -r '.use_proxy' "${CONFIG_JSON}")
-sam_path=$(jq -r '.sam_path' "${CONFIG_JSON}")
+Weights_path=$(jq -r '.Weights_path' "${CONFIG_JSON}")
 source $(jq -r '.conda_sh' "${CONFIG_JSON}")
 
 # -------- Proxy (optional) --------
@@ -35,7 +35,7 @@ else
 fi
 
 echo "========== (1) GHPS Module =========="
-conda activate pigs
+conda activate pigs325
 
 # --- Path Definitions ---
 Data_folder="${Data_path}/${Data_type}/scans_hive/scans/${scene}_step"
@@ -129,13 +129,13 @@ run_step "3. SAM Refine" \
 "CUDA_VISIBLE_DEVICES=${cudaid} python 3_distance_refine.py \
     --data_folder ${Data_folder} \
     --seg_folder ${Seg_folder} \
-    --weight_pth ${sam_path} \
+    --weight_pth ${Weights_path}/sam_vit_h_4b8939.pth \
     --open_flag --coarse_flag --post_flag --dist_var 10"
 
 run_step "4. X-PDNet" \
 "CUDA_VISIBLE_DEVICES=${cudaid} python 4_xpd_net.py \
     --config=XPDNet_101_config \
-    --trained_model=${Code_path}/GHPS_module/X-PDNet/weights/XPDNet_101_9_125000.pth \
+    --trained_model=${Weights_path}/XPDNet_101_9_125000.pth \
     --images=${Data_folder}/color/:${Seg_folder}/mask_xpd \
     --crop 6 --small"
 

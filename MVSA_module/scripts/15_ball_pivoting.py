@@ -1,6 +1,5 @@
 import open3d as o3d
 import numpy as np
-import hdbscan
 from sklearn.neighbors import NearestNeighbors
 from sklearn.preprocessing import normalize
 import trimesh

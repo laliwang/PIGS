@@ -9,8 +9,8 @@ from pathlib import Path
 current_dir = Path(__file__).resolve().parents[1]
 sys.path.append(current_dir)
 
-from net.net_planarSplatting import PlanarSplat_Network
-from utils import model_util
+from planarsplat.net.net_planarSplatting import PlanarSplat_Network
+from planarsplat.utils import model_util
 
 
 class PlanarRecWrapper(nn.Module):

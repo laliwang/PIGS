@@ -34,7 +34,7 @@ else
 fi
 
 echo "========== (3) PIGO + Meshing =========="
-conda activate pigs
+conda activate pigs325
 
 # --- Path Definitions ---
 Data_folder="${Data_path}/${Data_type}/scans_hive/scans/${scene}_step"

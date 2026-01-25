@@ -1,12 +1,12 @@
 {   
-    "scene": "785e7504b9",
-    "cudaid": "7",
-    "Code_path": "/code3/wjh/2025-PIGS/PIGS_final",
+    "scene": "f38b0108a1",
+    "cudaid": "5",
+    "Code_path": "/code3/wjh/2025-PIGS/PIGS",
     "Data_path": "/data/wjh/PIGS_data",
     "Data_type": "ScanNet++",
     "conda_sh": "/code1/wjh/anaconda3/etc/profile.d/conda.sh",
     "ray_tmp": "/code3/wjh/tmp",
-    "use_proxy": true,
-    "sam_path": "/data/wjh/ScanNet++/sam_vit_h_4b8939.pth",
-    "Token": "zxpnOzdFwB8hzE27PJWoGgOV8CGa0n1jkbFAi3PURZlfEt0rzMsKFRABkEJTuuZA"
+    "Weights_path": "/code3/wjh/2025-PIGS/PIGS/weights",
+    "Token": "zxpnOzdFwB8hzE27PJWoGgOV8CGa0n1jkbFAi3PURZlfEt0rzMsKFRABkEJTuuZA",
+    "use_proxy": true
   }

@@ -35,7 +35,7 @@ else
 fi
 
 echo "========== (5) Benchmark Evaluation =========="
-conda activate pigs
+conda activate pigs325
 
 # --- Paths and PYTHONPATH ---
 PIGS_folder="${Data_path}/${Data_type}/scans_pigs"

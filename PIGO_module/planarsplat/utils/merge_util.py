@@ -16,8 +16,8 @@ from pathlib import Path
 current_dir = Path(__file__).resolve().parents[1]
 sys.path.append(current_dir)
 
-from utils.model_util import quat_to_rot
-from utils.plot_util import plot_rectangle_planes
+from planarsplat.utils.model_util import quat_to_rot
+from planarsplat.utils.plot_util import plot_rectangle_planes
 
 def merge_plane(
         net, 

@@ -29,7 +29,7 @@ else
 fi
 
 echo "========== (0) Prepare ScanNet Dataset =========="
-conda activate pigs
+conda activate pigs325
 
 cd ${Code_path}
 

@@ -214,82 +214,8 @@ def render_set(model_path, name, iteration, views, scene, gaussians, pipeline, b
             dot = torch.sum(view_dir*depth_normal, dim=-1)
             angle = torch.acos(dot)
             mask = angle > (100.0 / 180 * 3.14159)
-            depth_tsdf[mask] = 0 # depth_filter让射线法向量夹角超过一定角度的depth_tsdf赋0 不提取这些位置的mesh结果 效果反而变差。。
-        depths_tsdf_fusion.append(depth_tsdf.squeeze()) # depths_tsdf_fusion用的是所有训练帧渲染深度图像depth_plane 在此基础上进行tsdf-fusion咯 合理
-        
-    if volume is not None:
-        # depths_tsdf_fusion = torch.stack(depths_tsdf_fusion, dim=0) # 你tsdf-fusion的时候nearest camera有啥用嘞
-        for idx, view in enumerate(tqdm(views, desc="TSDF Fusion progress")):
-            ref_depth = depths_tsdf_fusion[idx]
-            
-            if use_depth_filter and len(view.nearest_id) > 2 and not pgsr:
-                print("Using Depth Filter ... Using Nearest IDs ...")
-                # nearest_id到底是在哪一步获取的，， 其实nearest_id的作用也就是让提取得到的depth_tsdf图像上不满足跨视图约束的点云不参与tsdf-fusion过程
-                nearest_world_view_transforms = scene.world_view_transforms[view.nearest_id]
-                num_n = nearest_world_view_transforms.shape[0]
-                ## compute geometry consistency mask
-                H, W = ref_depth.squeeze().shape
-
-                ix, iy = torch.meshgrid(
-                    torch.arange(W), torch.arange(H), indexing='xy')
-                pixels = torch.stack([ix, iy], dim=-1).float().to(out['plane_depth'].device)
-
-                pts = gaussians.get_points_from_depth(view, ref_depth)
-                pts_in_nearest_cam = torch.matmul(nearest_world_view_transforms[:,None,:3,:3].expand(num_n,H*W,3,3).transpose(-1,-2), 
-                                                  pts[None,:,:,None].expand(num_n,H*W,3,1))[...,0] + nearest_world_view_transforms[:,None,3,:3] # b, pts, 3
-
-                depths_nearest = depths_tsdf_fusion[view.nearest_id][:,None]
-                pts_projections = torch.stack(
-                                [pts_in_nearest_cam[...,0] * view.Fx / pts_in_nearest_cam[...,2] + view.Cx,
-                                pts_in_nearest_cam[...,1] * view.Fy / pts_in_nearest_cam[...,2] + view.Cy], -1).float()
-                d_mask = (pts_projections[..., 0] > 0) & (pts_projections[..., 0] < view.image_width) &\
-                         (pts_projections[..., 1] > 0) & (pts_projections[..., 1] < view.image_height)
-                # d_mask是ref_view 到 nearest_view 的重投影图像mask
-
-                pts_projections[..., 0] /= ((view.image_width - 1) / 2)
-                pts_projections[..., 1] /= ((view.image_height - 1) / 2)
-                pts_projections -= 1
-                pts_projections = pts_projections.view(num_n, -1, 1, 2)
-                # 重投影点直接使用grid_sample在nearest_view的plane_depth上面找的新的深度值
-                map_z = torch.nn.functional.grid_sample(input=depths_nearest,
-                                                        grid=pts_projections,
-                                                        mode='bilinear',
-                                                        padding_mode='border',
-                                                        align_corners=True
-                                                        )[:,0,:,0]
-                
-                pts_in_nearest_cam[...,0] = pts_in_nearest_cam[...,0]/pts_in_nearest_cam[...,2]*map_z.squeeze()
-                pts_in_nearest_cam[...,1] = pts_in_nearest_cam[...,1]/pts_in_nearest_cam[...,2]*map_z.squeeze()
-                pts_in_nearest_cam[...,2] = map_z.squeeze()
-                pts_ = (pts_in_nearest_cam-nearest_world_view_transforms[:,None,3,:3])
-                pts_ = torch.matmul(nearest_world_view_transforms[:,None,:3,:3].expand(num_n,H*W,3,3), 
-                                    pts_[:,:,:,None].expand(num_n,H*W,3,1))[...,0]
-
-                pts_in_view_cam = pts_ @ view.world_view_transform[:3,:3] + view.world_view_transform[None,None,3,:3]
-                pts_projections = torch.stack(
-                            [pts_in_view_cam[...,0] * view.Fx / pts_in_view_cam[...,2] + view.Cx,
-                            pts_in_view_cam[...,1] * view.Fy / pts_in_view_cam[...,2] + view.Cy], -1).float()
-                pixel_noise = torch.norm(pts_projections.reshape(num_n, H, W, 2) - pixels[None], dim=-1) # 重重投影误差 但是这里的误差是用depth_plane计算的
-                d_mask_all = d_mask.reshape(num_n,H,W) & (pixel_noise < 1.0) & (pts_in_view_cam[...,2].reshape(num_n,H,W) > 0.1)
-                d_mask_all = (d_mask_all.sum(0) > 1)
-                ref_depth[~d_mask_all] = 0
-
-            ref_depth[ref_depth>max_depth] = 0
-            ref_depth = ref_depth.detach().cpu().numpy()
-            
-            pose = np.identity(4)
-            pose[:3,:3] = view.R.transpose(-1,-2)
-            pose[:3, 3] = view.T
-            color = o3d.io.read_image(os.path.join(render_path, view.image_name + ".png"))
-
-            # 生成深度图像（单位转换为毫米并转为uint16）
-            depth = o3d.geometry.Image((ref_depth * 1000).astype(np.uint16))
-            rgbd = o3d.geometry.RGBDImage.create_from_color_and_depth(
-                color, depth, depth_scale=1000.0, depth_trunc=max_depth, convert_rgb_to_intensity=False)
-            volume.integrate(
-                rgbd,
-                o3d.camera.PinholeCameraIntrinsic(W, H, view.Fx, view.Fy, view.Cx, view.Cy),
-                pose) # 使用渲染的rgbd图像执行简单的tsdf fusion获取的 原理非常简单 那rtg-slam的3dgs表示可以吗？
+            depth_tsdf[mask] = 0
+        depths_tsdf_fusion.append(depth_tsdf.squeeze())
 
 def render_sets(dataset : ModelParams, iteration : int, pipeline : PipelineParams, skip_train : bool, skip_test : bool,
                  max_depth : float, voxel_size : float, use_depth_filter : bool, not_pgsr : bool, args):
@@ -312,22 +238,11 @@ def render_sets(dataset : ModelParams, iteration : int, pipeline : PipelineParam
         color_type=o3d.pipelines.integration.TSDFVolumeColorType.RGB8)
 
         if not skip_train:
-            # 核心代码是render_set里头的
             render_set(dataset.model_path, "train_pigo", scene.loaded_iter, scene.getTrainCameras(), scene, gaussians, pipeline, background, gaussians_temp,
                        max_depth=max_depth, volume=volume, use_depth_filter=use_depth_filter, not_pgsr=not_pgsr, only_mesh=args.only_mesh, use_mask=args.use_mask)
-            print(f"extract_triangle_mesh")
-            mesh = volume.extract_triangle_mesh()
 
             path = os.path.join(dataset.model_path, "mesh")
             os.makedirs(path, exist_ok=True)
-            
-            o3d.io.write_triangle_mesh(os.path.join(path, "tsdf_fusion.ply"), mesh, 
-                                       write_triangle_uvs=True, write_vertex_colors=True, write_vertex_normals=True)
-            mesh = clean_mesh(mesh)
-            mesh.remove_unreferenced_vertices()
-            mesh.remove_degenerate_triangles()
-            o3d.io.write_triangle_mesh(os.path.join(path, "tsdf_fusion_post.ply"), mesh, 
-                                       write_triangle_uvs=True, write_vertex_colors=True, write_vertex_normals=True)
 
         if not skip_test:
             render_set(dataset.model_path, "test_pigo", scene.loaded_iter, scene.getTestCameras(), scene, gaussians, pipeline, background,gaussians_temp)

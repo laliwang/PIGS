@@ -34,7 +34,7 @@ else
 fi
 
 echo "========== (4) Generate Evaluation Ground Truth =========="
-conda activate pigs
+conda activate pigs325
 
 # --- Paths and Environment Variables ---
 cd "${Code_path}/MVSA_module/airplanes_part/benchmark"

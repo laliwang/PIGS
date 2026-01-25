@@ -36,7 +36,7 @@ fi
 
 # -------- Activate base env --------
 echo "========== (0) Prepare ScanNet++ Dataset =========="
-conda activate pigs
+conda activate pigs325
 cd "${Code_path}"
 
 # =====================================================
@@ -59,7 +59,6 @@ python download_data.py \
 STEP_NAME="Extract RGB from video"
 echo "[0.2] Extracting RGB images from video..."
 
-conda activate pcdp
 python -m iphone.prepare_iphone_data \
     "${scene}" \
     "${Data_path}/${Data_type}/scans_data"
@@ -70,7 +69,6 @@ python -m iphone.prepare_iphone_data \
 STEP_NAME="Generate sensor_data & hive format"
 echo "[0.3] Generating sensor_data and hive format..."
 
-conda activate pigs
 python gen_sensor.py \
     --scene_id "${scene}" \
     --path_data "${Data_path}/${Data_type}/scans_data" \
