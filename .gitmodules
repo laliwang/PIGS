@@ -1,0 +1,3 @@
+[submodule "GHPS_module/renderpy"]
+	path = GHPS_module/renderpy
+	url = https://github.com/liu115/renderpy
