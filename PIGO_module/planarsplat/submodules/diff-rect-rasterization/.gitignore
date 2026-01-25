@@ -1,6 +1,0 @@
-build/
-diff_rect_rasterization.egg-info/
-*.so
-.vscode
-**__pycache__**
-*.pyc

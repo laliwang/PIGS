@@ -1,3 +1,6 @@
 [submodule "GHPS_module/renderpy"]
 	path = GHPS_module/renderpy
 	url = https://github.com/liu115/renderpy
+[submodule "PIGO_module/planarsplat/submodules/diff-rect-rasterization"]
+	path = PIGO_module/planarsplat/submodules/diff-rect-rasterization
+	url = https://github.com/ant-research/diff-rect-rasterization
