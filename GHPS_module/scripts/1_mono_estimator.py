@@ -10,6 +10,7 @@ import pandas as pd
 import open3d as o3d
 from natsort import natsorted
 from tqdm import trange, tqdm
+from torch.cuda.amp import autocast
 import copy
 import shutil
 import argparse
@@ -176,69 +177,6 @@ def get_img_grad_weight(img, beta=2.0):
     grad_img = grad_img*255.0
     return grad_img
 
-def compute_normals(pcd, tran, search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30)):
-    pcd.estimate_normals(search_param=search_param)
-    pcd.orient_normals_towards_camera_location(camera_location=[tran[0], tran[1], tran[2]])
-    return pcd
-
-def project_mask_pc(rgb_input, depth_input, depth_color, pose_input, K_input, max_depth=10, filter_outlier=False, v_size=0.025, depth_scale=1000.0, crop=6):
-    frame_id = rgb_input.split('/')[-1].split('.')[0]
-    rgb_array = cv2.imread(rgb_input)
-    rgb_array = cv2.cvtColor(rgb_array, cv2.COLOR_BGR2RGB)
-    depth_array = depth_input if isinstance(depth_input, np.ndarray) else cv2.imread(depth_input, -1)
-    if max_depth > 0:
-        depth_array[depth_array > max_depth] = 0
-
-    # depth need to add black board
-    depth_array = cv2.copyMakeBorder(depth_array, crop, crop, crop, crop, cv2.BORDER_CONSTANT, value=0) if crop>0 else depth_array
-
-    if depth_color is not None:
-      depth_color_tensor = (torch.from_numpy(depth_color).to(torch.float32)).permute(2, 0, 1)
-      grad_depth = get_img_grad_weight(depth_color_tensor).cpu().numpy()
-      grad_depth_binary = (grad_depth > 50)
-
-      # a little dilation for binary
-      # kernel = np.ones((3,3), np.uint8)
-      kernel = cv2.getStructuringElement(cv2.MORPH_CROSS, (3, 3))
-      grad_depth_binary = (cv2.dilate(grad_depth_binary.astype(np.uint8), kernel, iterations=1))
-      grad_depth_binary = cv2.copyMakeBorder(grad_depth_binary, crop, crop, crop, crop, cv2.BORDER_CONSTANT, value=0).astype(np.bool_) if crop>0 else grad_depth_binary.astype(np.bool_)
-
-    #   cv2.imwrite('grad_depth.png', grad_depth)
-    #   cv2.imwrite('grad_depth_binary.png', (grad_depth_binary*255.0))
-    else:
-      grad_depth_binary = np.zeros_like(depth_array).astype(np.bool_)
-
-    fx, fy, cx, cy = K_input[0,0],K_input[1,1],K_input[0,2],K_input[1,2]
-    # Convert to 3D coordinates
-    mask_valid = (depth_array > 0) & (~grad_depth_binary)
-    if depth_color is not None:
-      depth_16 = copy.deepcopy(depth_array)
-      depth_16[~mask_valid] = 0
-      depth_16 = (depth_16*depth_scale).astype(np.uint16)
-      cv2.imwrite(rgb_input.replace(f'color/{frame_id}.jpg', f'depth_m3d/{frame_id}.png'), depth_16)
-
-    v, u = np.where(mask_valid)
-    depth_mask = depth_array[mask_valid]
-    rgb_mask = (rgb_array[mask_valid]).reshape(-1,3)
-    x = (u - cx) * depth_mask / fx
-    y = (v - cy) * depth_mask / fy
-    z = depth_mask
-    points = np.stack((x, y, z), axis=-1)
-    points = points.reshape(-1, 3)
-    pcd = o3d.geometry.PointCloud()
-    pcd.points = o3d.utility.Vector3dVector(points)
-    pcd.colors = o3d.utility.Vector3dVector(rgb_mask / 255.0)
-    pose = np.loadtxt(pose_input)
-    pcd = pcd.transform(pose)
-    pcd = pcd.voxel_down_sample(voxel_size=v_size)
-    pcd = compute_normals(pcd, pose[:3,3])
-    if depth_color is not None:
-      depth_color = cv2.copyMakeBorder(depth_color, crop, crop, crop, crop, cv2.BORDER_CONSTANT, value=(0,0,0)) if crop>0 else depth_color
-      depth_color[~mask_valid] = 0.0
-      return pcd, depth_color
-    else:
-      return pcd, None
-
 def clean_mesh(mesh, min_len=1000):
     with o3d.utility.VerbosityContextManager(o3d.utility.VerbosityLevel.Debug) as cm:
         triangle_clusters, cluster_n_triangles, cluster_area = (mesh.cluster_connected_triangles())
@@ -249,38 +187,8 @@ def clean_mesh(mesh, min_len=1000):
     mesh_0 = copy.deepcopy(mesh)
     mesh_0.remove_triangles_by_mask(triangles_to_remove)
     return mesh_0
-
-def tsdf_fusion(rgb_list, depth_list, pose_list, K_input, depth_factor=1000.0, max_depth=10, voxel_size=0.01, sdf_trunc=0.04):
-  # tsdf-volume generation
-  volume = o3d.pipelines.integration.ScalableTSDFVolume(
-    voxel_length=voxel_size, # 体素尺寸
-    sdf_trunc=sdf_trunc,  # TSDF 截断距离
-    color_type=o3d.pipelines.integration.TSDFVolumeColorType.RGB8)  # 使用 RGB 彩色数据
-  for i in trange(len(depth_list)):
-    rgb = (cv2.imread(rgb_list[i])[:, :, ::-1]).astype(np.uint8)
-    depth = cv2.imread(depth_list[i], -1)
-    pose = np.loadtxt(pose_list[i])
-    h, w = depth.shape[:2]
-    intrinsic = o3d.camera.PinholeCameraIntrinsic()
-    intrinsic.set_intrinsics(w, h, K_input[0,0], K_input[1,1], K_input[0,2], K_input[1,2])
-
-    rgbd = o3d.geometry.RGBDImage.create_from_color_and_depth(
-                o3d.geometry.Image(rgb), 
-                o3d.geometry.Image(depth),
-                depth_scale=depth_factor, 
-                depth_trunc=max_depth, 
-                convert_rgb_to_intensity=False)
-    volume.integrate(rgbd, intrinsic, np.linalg.inv(pose))
-  # extract mesh from tsdf-volume
-  mesh = volume.extract_triangle_mesh()
-  mesh.compute_vertex_normals()
-  mesh_post = clean_mesh(mesh, min_len=1000)
-  mesh_post.remove_unreferenced_vertices()
-  mesh_post.remove_degenerate_triangles()
-  return mesh, mesh_post
-
 # svo 的 tsdf-fusion 其实未必会比ScalableTSDFVolume更好吧
-def tsdf_fusion_svo(rgb_images, depth_images, poses, intrinsic, voxel_size=0.025, sdf_trunc=0.5):
+def tsdf_fusion_svo(rgb_images, depth_images, poses, intrinsic, depth_factor=1000.0, max_depth=10, voxel_size=0.01, sdf_trunc=0.04):
     o3d_device = o3d.core.Device("CUDA:0")
     voxel_block_grid = o3d.t.geometry.VoxelBlockGrid(
         attr_names=("tsdf", "weight", "color"),
@@ -308,8 +216,8 @@ def tsdf_fusion_svo(rgb_images, depth_images, poses, intrinsic, voxel_size=0.025
           color=rgb_o3d,
           intrinsic=intrinsic_o3d,
           extrinsic=extrinsic_o3d,
-          depth_scale=1000.0,  # 深度图像的尺度（单位转换为米）
-          depth_max=10.0,  # 最大深度范围
+          depth_scale=depth_factor,
+          depth_max=max_depth,
           trunc_voxel_multiplier=sdf_trunc / voxel_size
       )
 
@@ -348,39 +256,6 @@ def tsdf_fusion_SR(rgb_list, depth_list, pose_list, K_input, depth_factor=1000.0
               cam_T_world_b44=pose,)
   return fuser
 
-def sample_pc_random(mesh_folder, num_samples=200000):
-  mesh = trimesh.load(mesh_folder)
-  points, face_indices = trimesh.sample.sample_surface(mesh, num_samples)
-  normals = mesh.face_normals[face_indices]
-  pcd = o3d.geometry.PointCloud()
-  pcd.points = o3d.utility.Vector3dVector(points)
-  pcd.normals = o3d.utility.Vector3dVector(normals)
-  pcd.colors = o3d.utility.Vector3dVector(np.ones_like(points) * 0.5)
-  return pcd
-
-def sample_pc_evenly(mesh_folder, num_samples=200000):
-  mesh = trimesh.load(mesh_folder)
-  areas = mesh.area_faces
-  probabilities = areas / areas.sum()
-  face_indices = np.random.choice(
-      np.arange(len(mesh.faces)), size=num_samples, p=probabilities
-  )
-  triangles = mesh.triangles[face_indices]
-
-  u = np.sqrt(np.random.rand(num_samples, 1))
-  v = np.random.rand(num_samples, 1)
-  sampled_points = (
-      (1 - u) * triangles[:, 0, :] + 
-      (u * (1 - v)) * triangles[:, 1, :] + 
-      (u * v) * triangles[:, 2, :]
-  )
-  normals = mesh.face_normals[face_indices]
-  pcd = o3d.geometry.PointCloud()
-  pcd.points = o3d.utility.Vector3dVector(sampled_points)
-  pcd.normals = o3d.utility.Vector3dVector(normals)
-  pcd.colors = o3d.utility.Vector3dVector(np.ones_like(sampled_points) * 0.5)
-  return pcd
-
 def read_files(directory, endtxt):
     file_paths = [os.path.join(directory, file) for file in os.listdir(directory) if file.endswith(endtxt)]
     file_list = natsorted(file_paths)
@@ -404,6 +279,7 @@ if __name__ == '__main__':
     parser.add_argument("--crop", type=int, default=0, help='Crop the image for scannet v2 data.')
     parser.add_argument("--model", type=str, default='m3d', help='model of momocular depth estimation')
     parser.add_argument("--n_sample", default=200000, type=int)
+    parser.add_argument("--max_depth", default=10.0, type=float)
     args = parser.parse_args()
     input_folder = args.data_folder
     output_folder = args.seg_folder
@@ -419,12 +295,13 @@ if __name__ == '__main__':
     mesh_folder = os.path.join(input_folder, 'mesh')
     normal_folder = os.path.join(output_folder, 'normal_npy_m')
     normal_vis_folder = os.path.join(output_folder, 'normal_vis_m')
-    points3d_path = os.path.join(mesh_folder, f'points3d_{depth_model}.ply')
 
     if not os.path.exists(mesh_folder):
         os.makedirs(mesh_folder)
 
     rgb_list = read_files(rgb_folder, '.jpg')
+    if len(rgb_list) == 0:
+        rgb_list = read_files(rgb_folder, '.png')
     pose_list = read_files(pose_folder, '.txt')
     depth_list = read_files(depth_folder, '.png') if os.path.exists(depth_folder) else None
 
@@ -440,8 +317,6 @@ if __name__ == '__main__':
         ### load Metric3d_v2 model before loop
         model = torch.hub.load('yvanyin/metric3d', 'metric3d_vit_large', pretrain=True)
 
-        pred_pcd_save = o3d.geometry.PointCloud()
-        gt_pcd_save = o3d.geometry.PointCloud()
         with tqdm(total=len(rgb_list)) as pbar:
             for i in range(len(rgb_list)):
                 frame_id = rgb_list[i].split('/')[-1].split('.')[0]
@@ -490,6 +365,7 @@ if __name__ == '__main__':
                 # inference
                 model.cuda().eval()
                 with torch.no_grad():
+                  with autocast(dtype=torch.float16):
                     pred_depth, confidence, output_dict = model.inference({'input': rgb})
                 
                 # un pad
@@ -513,7 +389,7 @@ if __name__ == '__main__':
                     gt_depth = gt_depth[crop:-crop, crop:-crop] if crop > 0 else gt_depth
                     gt_depth = torch.from_numpy(gt_depth).float().cuda()
                     assert gt_depth.shape == pred_depth.shape
-                    
+
                     mask = (gt_depth > 1e-8)
                     abs_rel_err = (torch.abs(pred_depth[mask] - gt_depth[mask]) / gt_depth[mask]).mean()
                     abs_rel_err = round(abs_rel_err.item(),4)
@@ -522,9 +398,20 @@ if __name__ == '__main__':
                 depth_color = (depth_color - depth_color.min()) / (depth_color.max() - depth_color.min() + 1e-20)
                 depth_color = (depth_color * 255).clip(0, 255).astype(np.uint8)
                 depth_color = cv2.applyColorMap(depth_color, cv2.COLORMAP_JET)
+                # compute depth color gradient
+                depth_color_tensor = (torch.from_numpy(depth_color).to(torch.float32)).permute(2, 0, 1)
+                grad_depth = get_img_grad_weight(depth_color_tensor).cpu().numpy()
+                grad_depth_binary = (grad_depth > 50)
+                kernel = cv2.getStructuringElement(cv2.MORPH_CROSS, (3, 3))
+                grad_depth_binary = (cv2.dilate(grad_depth_binary.astype(np.uint8), kernel, iterations=1))
+                grad_depth_binary = cv2.copyMakeBorder(grad_depth_binary, crop, crop, crop, crop, cv2.BORDER_CONSTANT, value=0).astype(np.bool_) if crop>0 else grad_depth_binary.astype(np.bool_)
 
-                pred_pcd, depth_color_filter = project_mask_pc(rgb_file, pred_depth.cpu().numpy(), depth_color, pose_file, K_input, crop=crop)
-                # gt_pcd, _ = project_mask_pc(rgb_file, gt_depth.cpu().numpy(), None, pose_file, K_input)
+                depth_array = pred_depth.cpu().numpy()
+                depth_array = cv2.copyMakeBorder(depth_array, crop, crop, crop, crop, cv2.BORDER_CONSTANT, value=0) if crop>0 else depth_array
+                valid_mask = (depth_array < args.max_depth) & (~grad_depth_binary) & (depth_array > 0)
+                depth_array[~valid_mask] = 0
+                depth_16 = (depth_array*1000.0).astype(np.uint16)
+                cv2.imwrite(os.path.join(depth_m_folder, f'{frame_id}.png'), depth_16)
 
                 ### normal are also available
                 if 'prediction_normal' in output_dict: # only available for Metric3Dv2, i.e. vit model
@@ -555,6 +442,10 @@ if __name__ == '__main__':
 
                     pbar.set_postfix(abs_rel_err=f'{abs_rel_err:.4f}')
                     pbar.update(1)
+                
+                del output_dict
+                if i % 10 == 0:
+                    torch.cuda.empty_cache()
 
     print("Running tsdf-fusion for mesh extracton......")
     depth_m_list = read_files(depth_m_folder, 'png')
@@ -573,17 +464,11 @@ if __name__ == '__main__':
         bbox_np = None
 
     # tsdf_fusion Simple Recon
-    pred_fuser_SR = tsdf_fusion_SR(rgb_list, depth_m_list, pose_list, K_input, voxel_size=args.voxel_size, sdf_trunc=args.sdf_trunc, bounds=bbox_np)
+    pred_fuser_SR = tsdf_fusion_SR(rgb_list, depth_m_list, pose_list, K_input, voxel_size=args.voxel_size, sdf_trunc=args.sdf_trunc, bounds=bbox_np, max_depth=args.max_depth)
     pred_fuser_SR.export_mesh(os.path.join(mesh_folder, f"tsdf_fusion_SR_{depth_model}.ply"))
-
-    # # randomly sample point from mesh
-    # points3d_SR = sample_pc_random(os.path.join(mesh_folder, f"tsdf_fusion_SR_{depth_model}.ply"), num_samples=args.n_sample)
-    # o3d.io.write_point_cloud(points3d_path, points3d_SR)
-
-    # # tsdf_fusion svo
-    # pred_mesh_svo = tsdf_fusion_svo(rgb_list, depth_m_list, pose_list, K_input, voxel_size=args.voxel_size, sdf_trunc=args.sdf_trunc)
-    # o3d.io.write_triangle_mesh(os.path.join(mesh_folder, "tsdf_fusion_svo.ply"), pred_mesh_svo, 
-    #             write_triangle_uvs=True, write_vertex_colors=True, write_vertex_normals=True)
     
-    
+    # # tsdf_fusion svo Recon
+    # pred_mesh_svo = tsdf_fusion_svo(rgb_list, depth_m_list, pose_list, K_input, voxel_size=args.voxel_size, sdf_trunc=args.sdf_trunc, max_depth=args.max_depth)
+    # o3d.io.write_triangle_mesh(os.path.join(mesh_folder, f"tsdf_fusion_SR_{depth_model}.ply"), pred_mesh_svo, 
+    #             write_triangle_uvs=True, write_vertex_colors=False, write_vertex_normals=True)
     
