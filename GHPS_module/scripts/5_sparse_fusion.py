@@ -9,10 +9,6 @@ import copy
 import distinctipy
 import matplotlib.pyplot as plt
 
-np.random.seed(325)
-colorlist = distinctipy.get_colors(100)
-colorlist = np.array(colorlist)
-
 def read_files(directory, endtxt):
     file_paths = [os.path.join(directory, file) for file in os.listdir(directory) if file.endswith(endtxt)]
     file_list = natsorted(file_paths)
@@ -29,15 +25,29 @@ def filter_small_and_long(mask, min_size=1000, large_size=6000, obb_size=5):
     else:
         return True
 
-def mask_colorize(mask):
-    mask_color = np.zeros((mask.shape[0], mask.shape[1], 3))
-    unique_ids = np.unique(mask)
-    for id in unique_ids:
-        if id == 0:
-            continue
-        mask_color[mask == id] = colorlist[int(id)]
-    mask_color = (mask_color * 255).clip(0, 255).astype(np.uint8)
-    return mask_color
+def obb_occupancy_ratio(mask, ratio_thresh=0.5, min_size=200, large_size=3000, obb_size=5):
+    """
+    compute the occupancy ratio of the mask in its minimum bounding rectangle
+    """
+    mask_u8 = mask.astype(np.uint8)
+
+    contours, _ = cv2.findContours(
+        mask_u8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+    )
+    if len(contours) == 0:
+        return 0.0, 0.0, 0
+
+    all_pts = np.vstack(contours)
+    rect = cv2.minAreaRect(all_pts)
+    w, h = rect[1]
+    obb_area = max(w * h, 1.0)
+    mask_area = int(np.sum(mask_u8))
+    occupancy = mask_area / obb_area
+    
+    long_flag = ((w / (h+1e-10)) > obb_size or (h / (w+1e-10)) > obb_size) or (mask_area < min_size)
+    ratio_flag = (occupancy < ratio_thresh) and (mask_area < large_size)
+    valid_flag = ~(long_flag or ratio_flag) # not too long or too small and occupancy not too low
+    return valid_flag
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process scene name.')
@@ -73,7 +83,8 @@ if __name__ == '__main__':
             if id == 0:
                 continue
             mask_id = (mask_sam_i == id)
-            if filter_small_and_long(mask_id):
+            # if filter_small_and_long(mask_id):
+            if obb_occupancy_ratio(mask_id):
                 mask_fusion_i[mask_id] = id_start + 1
                 id_start += 1
         
