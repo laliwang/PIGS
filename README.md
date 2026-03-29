@@ -241,7 +241,7 @@ bash eval_compute_gt.sh scannetpp.json
 bash eval_compute_metrics.sh scannetpp.json
 ```
 
-**Notice:** For a detailed walkthrough of the full pipeline, please refer to [sequential.md](sequential.md), which provides a step-by-step example on `scene0575_00` from ScanNetV2.
+**Notice:** For a detailed walkthrough of the full pipeline, please refer to [sequential.md](sequential.md), which provides a step-by-step example on `scene0575_00` from ScanNetV2. For the PIGS_p5f variant, please refer to [efficient_p5f.md](efficient_p5f.md).
 
 ## ❓ FAQ / Common Questions
 ### Q-1: Installing `renderpy` fails due to missing system `LibGL`?
