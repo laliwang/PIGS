@@ -214,6 +214,10 @@ class DepthCamera(nn.Module):
                 # self.mask_image = resized_mask.to(self.data_device)
             else:
                 self.mask_image = None
+        else:
+            if self.mask_xpd_path is not None:
+                image_mask = np.load(self.mask_xpd_path)
+                self.mask_image = torch.from_numpy(image_mask).to(device=self.data_device, dtype=torch.float32)
 
         self.image_width = image_width
         self.image_height = image_height
@@ -261,12 +265,10 @@ class DepthCamera(nn.Module):
             gt_image = resized_image_rgb[:3, ...].clamp(0.0, 1.0)
             gt_image_gray = resized_image_gray.clamp(0.0, 1.0)
             if self.mask_xpd_path is not None:
-                image_mask = np.load(self.mask_xpd_path)
-                image_mask= Image.fromarray(image_mask)
-                resized_mask = image_mask.resize((self.image_width, self.image_height))
-                resized_mask = np.asarray(resized_mask, dtype=np.float32) 
-                resized_mask = torch.from_numpy(resized_mask)
-                return gt_image.cuda(), gt_image_gray.cuda(), resized_depth.cuda(), resized_mask.cuda()
+                # image_mask = torch.from_numpy(np.load(self.mask_xpd_path)).to(dtype=torch.float32)
+                # return gt_image.cuda(), gt_image_gray.cuda(), resized_depth.cuda(), image_mask.cuda()
+
+                return gt_image.cuda(), gt_image_gray.cuda(), resized_depth.cuda(), self.mask_image.cuda()
             else:
                 return gt_image.cuda(), gt_image_gray.cuda(), resized_depth.cuda(), None
 

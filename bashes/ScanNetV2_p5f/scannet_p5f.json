@@ -1,0 +1,15 @@
+{   
+    "scene": "scene0653_00",
+    "cudaid": "4",
+    "Code_path": "/code3/wjh/2025-PIGS/PIGS",
+    "Data_path": "/data/wjh/PIGS_data",
+    "Data_type": "ScanNetV2",
+    "conda_sh": "/code1/wjh/anaconda3/etc/profile.d/conda.sh",
+    "ray_tmp": "/code3/wjh/tmp",
+    "Weights_path": "/code3/wjh/2025-PIGS/PIGS/weights",
+    "sam_type": "fastsam",
+    "use_proxy": true,
+    "pigo_iter": 5000,
+    "pigo_ratio": 0.0,
+    "pigo_noload": true
+  }

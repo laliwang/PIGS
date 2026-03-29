@@ -159,6 +159,23 @@ def fetchPly(path):
     normals = np.vstack([vertices['nx'], vertices['ny'], vertices['nz']]).T
     return BasicPointCloud(points=positions, colors=colors, normals=normals)
 
+def fetchPly_sample(path, ratio=0.5):
+    plydata = PlyData.read(path)
+    vertices = plydata['vertex']
+    positions = np.vstack([vertices['x'], vertices['y'], vertices['z']]).T
+    colors = np.vstack([vertices['red'], vertices['green'], vertices['blue']]).T / 255.0
+    normals = np.vstack([vertices['nx'], vertices['ny'], vertices['nz']]).T
+
+    num_points = positions.shape[0]
+    sample_size = int(num_points * ratio)
+    indices = np.random.choice(num_points, sample_size, replace=False)
+
+    positions = positions[indices]
+    colors = colors[indices]
+    normals = normals[indices]
+
+    return BasicPointCloud(points=positions, colors=colors, normals=normals)
+
 def storePly(path, xyz, rgb):
     # Define the dtype for the structured array
     dtype = [('x', 'f4'), ('y', 'f4'), ('z', 'f4'),
@@ -902,7 +919,10 @@ def readOursSceneInfo(
         
     if hive_dict['use_mask'] and os.path.exists(plane_path):
         # print("**********use plane3d.ply for initialization**********")
-        pcd = fetchPly(plane_path)
+        if 'init_ratio' in hive_dict and hive_dict['init_ratio'] > 0.0:
+            pcd = fetchPly_sample(plane_path, hive_dict['init_ratio'])
+        else:
+            pcd = fetchPly(plane_path)
         ply_path =plane_path
     else:
         depth_indiced, pose_indiced = project_indice_select(depth_paths, poses, indicies)
